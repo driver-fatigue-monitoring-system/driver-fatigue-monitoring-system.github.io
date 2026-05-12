@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f5bd7" />
+    <title>Driver Fatigue Monitoring Platform</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="config.js"></script>
+  </head>
+  <body>
+    <noscript>This dashboard needs JavaScript to display live device events.</noscript>
+
+    <section id="authScreen" class="auth-screen">
+      <div class="auth-shell">
+        <div class="auth-hero">
+          <p class="eyebrow">Physical Device -> Edge Function -> Database -> Dashboard</p>
+          <h1>Driver Fatigue Monitoring System</h1>
+          <p>
+            A production-style dashboard for a physical AI detection device. The camera and
+            fatigue model run locally on the device; this website only displays verified results
+            received through Supabase.
+          </p>
+          <div class="flow-strip" aria-label="System architecture">
+            <span>Physical Device</span>
+            <strong>HTTPS</strong>
+            <span>Supabase Edge Function</span>
+            <strong>RLS</strong>
+            <span>Dashboard</span>
+          </div>
+        </div>
+
+        <div class="auth-card">
+          <div class="tabs" role="tablist" aria-label="Choose sign in type">
+            <button id="driverAuthTab" class="tab active" type="button">Driver Access</button>
+            <button id="adminAuthTab" class="tab" type="button">Admin Console</button>
+          </div>
+
+          <form id="driverLoginForm" class="auth-form">
+            <h2>Driver dashboard</h2>
+            <p>Use the email and permanent device serial number sent during activation.</p>
+            <label for="driverEmail">Email address</label>
+            <input id="driverEmail" type="email" autocomplete="email" placeholder="driver@example.com" required />
+            <label for="driverSerial">Unique device serial number</label>
+            <input id="driverSerial" type="text" autocomplete="off" placeholder="DFMS-8H42K9" required />
+            <button class="primary-btn" type="submit">Open Dashboard</button>
+          </form>
+
+          <form id="adminLoginForm" class="auth-form hidden">
+            <h2>Administrator</h2>
+            <p>Admins use Supabase Auth. Admin role is controlled in the database profiles table.</p>
+            <label for="adminEmail">Admin email</label>
+            <input id="adminEmail" type="email" autocomplete="email" placeholder="admin@example.com" />
+            <label for="adminPassword">Password</label>
+            <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Password" />
+            <button class="primary-btn" type="submit">Open Admin Console</button>
+          </form>
+
+          <p id="authMessage" class="form-message" role="status"></p>
+          <p id="demoNotice" class="demo-notice"></p>
+        </div>
+      </div>
+    </section>
+
+    <main id="appShell" class="app-shell hidden">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <div class="brand-mark">DF</div>
+          <div>
+            <strong>DFMS</strong>
+            <span>Monitoring Platform</span>
+          </div>
+        </div>
+        <nav class="nav-list" aria-label="Dashboard navigation">
+          <button class="nav-btn active" data-view="driverView" type="button">Driver</button>
+          <button class="nav-btn" data-view="analyticsView" type="button">Analytics</button>
+          <button class="nav-btn" data-view="logsView" type="button">Logs</button>
+          <button id="adminNavBtn" class="nav-btn hidden" data-view="adminView" type="button">Admin</button>
+        </nav>
+        <button id="signOutBtn" class="ghost-btn full-width" type="button">Sign Out</button>
+      </aside>
+
+      <section class="content-shell">
+        <header class="topbar">
+          <div>
+            <p id="accountMode" class="eyebrow">Driver dashboard</p>
+            <h1 id="pageTitle">Live Monitoring</h1>
+          </div>
+          <div class="topbar-actions">
+            <div class="layout-toggle" aria-label="Choose dashboard layout">
+              <button id="desktopLayoutBtn" class="layout-mode-btn active" type="button">PC / Tablet</button>
+              <button id="mobileLayoutBtn" class="layout-mode-btn" type="button">Mobile</button>
+            </div>
+            <span id="connectionPill" class="pill">Demo mode</span>
+            <button id="refreshBtn" class="ghost-btn" type="button">Refresh</button>
+          </div>
+        </header>
+
+        <section id="driverView" class="view active">
+          <div class="status-grid">
+            <article id="statusCard" class="status-card awake">
+              <div>
+                <span>Current status</span>
+                <strong id="currentStatus">Awake</strong>
+              </div>
+              <div class="status-dot" aria-hidden="true"></div>
+            </article>
+            <article class="metric-card">
+              <span>Latest event</span>
+              <strong id="latestTimestamp">No events yet</strong>
+            </article>
+            <article class="metric-card">
+              <span>Confidence</span>
+              <strong id="confidenceScore">0%</strong>
+            </article>
+            <article class="metric-card">
+              <span>Assigned device</span>
+              <strong id="deviceSerial">DFMS-DEMO</strong>
+            </article>
+          </div>
+
+          <div class="dashboard-grid">
+            <article class="panel live-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Live device feed</h2>
+                  <p>The physical unit sends inference results through the Edge Function.</p>
+                </div>
+                <span id="deviceStatusPill" class="pill success">Active</span>
+              </div>
+              <div id="framePreview" class="frame-preview">
+                <div>
+                  <strong>No frame available</strong>
+                  <span>Optional image preview appears here when frame_url is sent.</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel counters-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Current session</h2>
+                  <p>Session counters are calculated from the latest logs.</p>
+                </div>
+              </div>
+              <div class="counter-grid">
+                <div>
+                  <span>Drowsy</span>
+                  <strong id="sessionDrowsy">0</strong>
+                </div>
+                <div>
+                  <span>Yawn</span>
+                  <strong id="sessionYawn">0</strong>
+                </div>
+                <div>
+                  <span>Total</span>
+                  <strong id="sessionTotal">0</strong>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="analyticsView" class="view">
+          <div class="analytics-grid">
+            <article class="panel chart-panel">
+              <div class="panel-header">
+                <h2>Today: Drowsy vs Yawn</h2>
+              </div>
+              <canvas id="todayPieChart"></canvas>
+            </article>
+            <article class="panel chart-panel">
+              <div class="panel-header">
+                <h2>Daily detections</h2>
+              </div>
+              <canvas id="dailyChart"></canvas>
+            </article>
+            <article class="panel chart-panel wide">
+              <div class="panel-header">
+                <h2>Weekly detections</h2>
+              </div>
+              <canvas id="weeklyChart"></canvas>
+            </article>
+          </div>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Session summary</h2>
+                <p>Latest driving sessions and fatigue totals.</p>
+              </div>
+            </div>
+            <div id="sessionSummary" class="summary-list"></div>
+          </article>
+        </section>
+
+        <section id="logsView" class="view">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Event history</h2>
+                <p>All rows shown here were created from physical device events.</p>
+              </div>
+              <div class="button-row">
+                <button id="downloadCsvBtn" class="ghost-btn" type="button">CSV</button>
+                <button id="downloadExcelBtn" class="primary-btn small" type="button">Excel</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Driver</th>
+                    <th>Device</th>
+                    <th>Event</th>
+                    <th>Confidence</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="logsTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section id="adminView" class="view">
+          <div class="admin-grid">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Activate device</h2>
+                  <p>Register a unit, assign it to a driver, and send the Brevo email.</p>
+                </div>
+              </div>
+              <form id="activateDeviceForm" class="stacked-form">
+                <label for="driverNameInput">Driver name</label>
+                <input id="driverNameInput" type="text" placeholder="Driver name" required />
+                <label for="driverEmailInput">Driver email</label>
+                <input id="driverEmailInput" type="email" placeholder="driver@example.com" required />
+                <label for="serialInput">Serial number</label>
+                <input id="serialInput" type="text" placeholder="Leave blank to generate" />
+                <button class="primary-btn" type="submit">Activate and Email Driver</button>
+                <p id="adminActionMessage" class="form-message"></p>
+              </form>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Fleet overview</h2>
+                  <p>Device status and assigned drivers.</p>
+                </div>
+              </div>
+              <div class="stats-row">
+                <div>
+                  <span>Drivers</span>
+                  <strong id="adminDriverCount">0</strong>
+                </div>
+                <div>
+                  <span>Devices</span>
+                  <strong id="adminDeviceCount">0</strong>
+                </div>
+                <div>
+                  <span>Events today</span>
+                  <strong id="adminTodayCount">0</strong>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Devices</h2>
+                <p>Disable or reset a physical device token from the backend.</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Serial</th>
+                    <th>Driver</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Activated</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="devicesTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

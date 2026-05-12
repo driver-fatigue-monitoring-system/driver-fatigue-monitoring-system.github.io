@@ -1,0 +1,21 @@
+# Local environment and secrets
+.env
+.env.*
+*.local
+config.local.js
+
+# Supabase local CLI state
+supabase/.temp/
+
+# Dependency folders
+node_modules/
+
+# Logs and temporary files
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Python helper caches
+__pycache__/
+*.pyc
