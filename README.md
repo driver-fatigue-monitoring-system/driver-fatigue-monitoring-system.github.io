@@ -25,8 +25,8 @@ The driver portal is the page I use for clients. The admin console is deployed t
 - Lets a new driver claim an unassigned serial once by entering serial, email, and name.
 - Shows live status, latest event, confidence, current session counters, analytics, event history, and CSV export.
 - Provides an admin console to register devices, assign devices, reset tokens, disable/activate devices, and search devices.
-- Sends device activation emails with Brevo from the backend only.
-- Keeps service role keys, Brevo keys, and device token hashing logic out of frontend code.
+- Uses the printed device serial number as the normal driver access and account-claim workflow.
+- Keeps service role keys, optional Brevo keys, and device token hashing logic out of frontend code.
 
 ## Repository Structure
 
@@ -46,7 +46,7 @@ The driver portal is the page I use for clients. The admin console is deployed t
 │       ├── driver-login/              # Driver serial/email/name access workflow
 │       ├── driver-update-profile/     # Driver profile update endpoint
 │       ├── admin-register-device/     # Register printed devices before sale
-│       ├── admin-activate-device/     # Assign driver and send Brevo email
+│       ├── admin-activate-device/     # Optional legacy driver assignment/email workflow
 │       ├── admin-device-action/       # Disable, activate, reset token
 │       └── _shared/                   # Shared crypto, HTTP, Supabase helpers
 ├── physical-device/                   # Laptop/Raspberry Pi device code
@@ -154,15 +154,17 @@ The function:
 - Inserts the event into `detection_logs`.
 - Updates or creates the related driving session.
 
-## Brevo Email Workflow
+## Optional Legacy Brevo Email Workflow
 
-Brevo is used only from the backend. The frontend never contains the Brevo API key.
+The current product workflow does not require Brevo. Devices are registered before sale, the permanent serial number is printed on the physical device or box, and the driver opens the public dashboard with that serial number. If the serial is not claimed yet, the dashboard asks for the driver's email and name once.
 
-When a device is assigned to a driver by the admin workflow:
+The Brevo-based activation flow is kept only as an optional legacy backend workflow. It can still be used if I want the admin console/backend to send a serial number by email, but it is not required for the current system.
+
+If this optional workflow is enabled:
 
 - The backend sends the email using Brevo.
-- The email includes the driver name, serial number, dashboard link, and activation instructions.
-- The permanent serial number is what the driver uses to access the dashboard.
+- The frontend never contains the Brevo API key.
+- The email can include the driver name, serial number, dashboard link, and activation instructions.
 
 ## Required Supabase Secrets
 
@@ -171,10 +173,15 @@ Set these in Supabase, not in frontend code:
 ```bash
 npx supabase secrets set APP_JWT_SECRET="YOUR_SUPABASE_JWT_SECRET"
 npx supabase secrets set DEVICE_TOKEN_PEPPER="LONG_RANDOM_PEPPER"
+npx supabase secrets set DASHBOARD_LOGIN_URL="https://driver-fatigue-monitoring-system.github.io/"
+```
+
+Optional legacy Brevo email secrets, only if email activation is enabled:
+
+```bash
 npx supabase secrets set BREVO_API_KEY="YOUR_BREVO_API_KEY"
 npx supabase secrets set BREVO_SENDER_EMAIL="verified-sender@example.com"
 npx supabase secrets set BREVO_SENDER_NAME="Driver Fatigue Monitoring System"
-npx supabase secrets set DASHBOARD_LOGIN_URL="https://driver-fatigue-monitoring-system.github.io/"
 ```
 
 The normal Supabase runtime secrets `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are used by the Edge Functions in the Supabase environment.
@@ -250,7 +257,7 @@ Full setup details are in `README_DEVICE.md`.
 ## Security Notes
 
 - The Supabase service role key is never stored on the physical device.
-- The Brevo API key is never placed in frontend files.
+- If optional Brevo support is enabled, the Brevo API key is never placed in frontend files.
 - The physical device stores only its own serial number and private token.
 - Device tokens are hashed in the database.
 - The browser uses only public Supabase frontend values.
@@ -259,4 +266,4 @@ Full setup details are in `README_DEVICE.md`.
 
 ## My Project Goal
 
-I built this project to demonstrate a realistic Driver Fatigue Monitoring System where the physical AI device, backend validation, database security, email activation, and dashboard analytics work together as one complete platform. The main idea is that the AI model stays on the device, while the website acts as the secure monitoring and reporting layer.
+I built this project to demonstrate a realistic Driver Fatigue Monitoring System where the physical AI device, backend validation, database security, serial-number claiming, and dashboard analytics work together as one complete platform. The main idea is that the AI model stays on the device, while the website acts as the secure monitoring and reporting layer.
