@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f5bd7" />
+    <title>Driver Fatigue Monitoring System</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="config.js"></script>
+  </head>
+  <body class="client-page">
+    <noscript>This dashboard needs JavaScript to display live device events.</noscript>
+
+    <section id="authScreen" class="auth-screen">
+      <div class="auth-shell">
+        <div class="auth-hero">
+          <p class="eyebrow">Physical Device -> Edge Function -> Database -> Dashboard</p>
+          <div class="auth-heading-row">
+            <div class="brand-mark auth-logo" aria-hidden="true">DF</div>
+            <h1>Driver Fatigue Monitoring System</h1>
+          </div>
+          <p>
+            A secure driver portal for a physical AI detection device. The camera and fatigue
+            model run locally on the device; this website only displays verified results received
+            through Supabase.
+          </p>
+          <div class="flow-strip" aria-label="System architecture">
+            <span>Physical Device</span>
+            <strong>HTTPS</strong>
+            <span>Supabase Edge Function</span>
+            <strong>RLS</strong>
+            <span>Driver Dashboard</span>
+          </div>
+        </div>
+
+        <div class="auth-card">
+          <form id="driverLoginForm" class="auth-form">
+            <div class="auth-form-header">
+              <h2>Driver access</h2>
+              <div class="layout-toggle auth-layout-toggle" aria-label="Choose dashboard layout">
+                <button id="authDesktopLayoutBtn" class="layout-mode-btn active" type="button" aria-label="PC view">
+                  <span class="control-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M4 6.5h16v10H4z"/><path d="M9 20h6"/><path d="M12 16.5V20"/></svg>
+                  </span>
+                  <span>PC</span>
+                </button>
+                <button id="authMobileLayoutBtn" class="layout-mode-btn" type="button" aria-label="Mobile view">
+                  <span class="control-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M8 3.5h8A1.5 1.5 0 0 1 17.5 5v14A1.5 1.5 0 0 1 16 20.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Z"/><path d="M10.5 17.5h3"/></svg>
+                  </span>
+                  <span>Mobile</span>
+                </button>
+              </div>
+            </div>
+            <p>Enter the permanent serial number printed on your device.</p>
+            <label for="driverSerial">Device serial number</label>
+            <input id="driverSerial" type="text" autocomplete="off" placeholder="DFMS-8H42K9" required />
+            <div id="driverEmailGroup" class="activation-name-field hidden">
+              <label for="driverEmail">Email address</label>
+              <input id="driverEmail" type="email" autocomplete="email" placeholder="driver@example.com" />
+            </div>
+            <div id="driverNameGroup" class="activation-name-field hidden">
+              <label for="driverName">Driver name</label>
+              <input id="driverName" type="text" autocomplete="name" placeholder="Your full name" />
+            </div>
+            <button class="primary-btn" type="submit">Open Dashboard</button>
+          </form>
+          <p id="authMessage" class="form-message" role="status"></p>
+          <p id="demoNotice" class="demo-notice"></p>
+        </div>
+      </div>
+    </section>
+
+    <main id="appShell" class="app-shell hidden">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <div class="brand-mark">DF</div>
+          <div>
+            <strong>DFMS</strong>
+            <span>Driver Portal</span>
+          </div>
+        </div>
+        <nav class="nav-list" aria-label="Dashboard navigation">
+          <button class="nav-btn active" data-view="driverView" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg>
+            </span>
+            <span>Driver</span>
+          </button>
+          <button class="nav-btn" data-view="analyticsView" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
+            </span>
+            <span>Analytics</span>
+          </button>
+          <button class="nav-btn" data-view="logsView" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M9 4h6l1 2h3v15H5V6h3l1-2Z"/><path d="M9 11h6"/><path d="M9 15h6"/></svg>
+            </span>
+            <span>Logs</span>
+          </button>
+          <div class="action-menu-wrap sidebar-action-menu">
+            <button id="actionMenuBtn" class="action-nav-btn" type="button" aria-expanded="false" aria-controls="actionMenu" aria-label="Open actions">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M6 7h12"/><path d="M6 12h12"/><path d="M6 17h12"/></svg>
+              </span>
+              <span>Menu</span>
+            </button>
+            <div id="actionMenu" class="action-menu hidden">
+              <button id="driverInfoBtn" type="button">
+                <span class="mobile-menu-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+                </span>
+                <span>Driver info</span>
+              </button>
+              <button id="actionRefreshBtn" type="button">
+                <span class="mobile-menu-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M18.4 9A7 7 0 0 0 6.2 6.8L4 9"/><path d="M5.6 15a7 7 0 0 0 12.2 2.2L20 15"/></svg>
+                </span>
+                <span>Refresh</span>
+              </button>
+              <button id="actionSignOutBtn" type="button">
+                <span class="mobile-menu-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M9 21H5.5A2.5 2.5 0 0 1 3 18.5v-13A2.5 2.5 0 0 1 5.5 3H9"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+                </span>
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
+        </nav>
+        <button id="signOutBtn" class="ghost-btn full-width icon-text-btn" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M9 21H5.5A2.5 2.5 0 0 1 3 18.5v-13A2.5 2.5 0 0 1 5.5 3H9"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </span>
+          <span>Sign Out</span>
+        </button>
+      </aside>
+
+      <section class="content-shell">
+        <header class="topbar">
+          <div class="topbar-title">
+            <div class="brand-mark topbar-logo" aria-hidden="true">DF</div>
+            <div>
+              <p id="accountMode" class="eyebrow">Driver dashboard</p>
+              <h1 id="pageTitle">Live Monitoring</h1>
+            </div>
+          </div>
+          <div class="topbar-actions">
+            <div class="layout-toggle" aria-label="Choose dashboard layout">
+              <button id="desktopLayoutBtn" class="layout-mode-btn active" type="button">
+                <span class="control-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M4 6.5h16v10H4z"/><path d="M9 20h6"/><path d="M12 16.5V20"/></svg>
+                </span>
+                <span>PC</span>
+              </button>
+              <button id="mobileLayoutBtn" class="layout-mode-btn" type="button">
+                <span class="control-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M8 3.5h8A1.5 1.5 0 0 1 17.5 5v14A1.5 1.5 0 0 1 16 20.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5Z"/><path d="M10.5 17.5h3"/></svg>
+                </span>
+                <span>Mobile</span>
+              </button>
+            </div>
+            <button id="refreshBtn" class="ghost-btn icon-text-btn compact-action" type="button">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M18.4 9A7 7 0 0 0 6.2 6.8L4 9"/><path d="M5.6 15a7 7 0 0 0 12.2 2.2L20 15"/></svg>
+              </span>
+              <span>Refresh</span>
+            </button>
+          </div>
+        </header>
+
+        <section id="driverView" class="view active">
+          <div class="status-grid">
+            <article id="statusCard" class="status-card awake">
+              <div>
+                <span>Current status</span>
+                <strong id="currentStatus">Awake</strong>
+              </div>
+              <div class="status-dot" aria-hidden="true"></div>
+            </article>
+            <article class="metric-card">
+              <span>Latest event</span>
+              <strong id="latestTimestamp">No events yet</strong>
+            </article>
+            <article class="metric-card">
+              <span>Confidence</span>
+              <strong id="confidenceScore">0%</strong>
+            </article>
+            <article class="metric-card">
+              <span>Assigned device</span>
+              <strong id="deviceSerial">Not connected</strong>
+            </article>
+          </div>
+
+          <div class="dashboard-grid">
+            <article class="panel live-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Live device feed</h2>
+                  <p>The physical unit sends confirmed fatigue results through the Edge Function.</p>
+                </div>
+                <span id="deviceStatusPill" class="pill success">Active</span>
+              </div>
+              <div id="framePreview" class="frame-preview">
+                <div>
+                  <strong>No frame available</strong>
+                  <span>Optional image preview appears here when frame_url is sent.</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel counters-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Current session</h2>
+                  <p>Session counters are calculated from the latest confirmed events.</p>
+                </div>
+              </div>
+              <div class="counter-grid">
+                <div>
+                  <span>Drowsy</span>
+                  <strong id="sessionDrowsy">0</strong>
+                </div>
+                <div>
+                  <span>Yawn</span>
+                  <strong id="sessionYawn">0</strong>
+                </div>
+                <div>
+                  <span>Total</span>
+                  <strong id="sessionTotal">0</strong>
+                </div>
+                <div>
+                  <span>Duration</span>
+                  <strong id="sessionDuration">0m</strong>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="analyticsView" class="view">
+          <div class="analytics-grid">
+            <article class="panel chart-panel">
+              <div class="panel-header">
+                <h2>Today: Drowsy vs Yawn</h2>
+              </div>
+              <canvas id="todayPieChart"></canvas>
+            </article>
+            <article class="panel chart-panel">
+              <div class="panel-header">
+                <h2>Daily detections</h2>
+              </div>
+              <canvas id="dailyChart"></canvas>
+            </article>
+            <article class="panel chart-panel wide">
+              <div class="panel-header">
+                <h2>Weekly detections</h2>
+              </div>
+              <canvas id="weeklyChart"></canvas>
+            </article>
+          </div>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Session summary</h2>
+                <p>Latest driving sessions and fatigue totals.</p>
+              </div>
+            </div>
+            <div id="sessionSummary" class="summary-list"></div>
+          </article>
+        </section>
+
+        <section id="logsView" class="view">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Event history</h2>
+                <p>All rows shown here were created from physical device events.</p>
+              </div>
+              <div class="button-row">
+                <button id="downloadCsvBtn" class="ghost-btn" type="button">CSV</button>
+                <button id="downloadExcelBtn" class="primary-btn small" type="button">Excel</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Driver</th>
+                    <th>Device</th>
+                    <th>Event</th>
+                    <th>Confidence</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="logsTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </section>
+
+      <nav class="mobile-bottom-nav" aria-label="Mobile navigation">
+        <button class="mobile-nav-item nav-btn active" data-view="driverView" type="button">
+          <span class="mobile-nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M3.5 11.5 12 4l8.5 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg>
+          </span>
+          <span>Driver</span>
+        </button>
+        <button class="mobile-nav-item nav-btn" data-view="analyticsView" type="button">
+          <span class="mobile-nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
+          </span>
+          <span>Analytics</span>
+        </button>
+        <button class="mobile-nav-item nav-btn" data-view="logsView" type="button">
+          <span class="mobile-nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M9 4h6l1 2h3v15H5V6h3l1-2Z"/><path d="M9 11h6"/><path d="M9 15h6"/></svg>
+          </span>
+          <span>Logs</span>
+        </button>
+        <div class="mobile-menu-wrap">
+          <button id="mobileMenuBtn" class="mobile-nav-item mobile-menu-btn" type="button" aria-expanded="false" aria-controls="mobileActionMenu">
+            <span class="mobile-nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M6 7h12"/><path d="M6 12h12"/><path d="M6 17h12"/></svg>
+            </span>
+            <span>Menu</span>
+          </button>
+          <div id="mobileActionMenu" class="mobile-action-menu hidden">
+            <button id="mobileDriverInfoBtn" type="button">
+              <span class="mobile-menu-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+              </span>
+              <span>Driver info</span>
+            </button>
+            <button id="mobileRefreshBtn" type="button">
+              <span class="mobile-menu-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M18.4 9A7 7 0 0 0 6.2 6.8L4 9"/><path d="M5.6 15a7 7 0 0 0 12.2 2.2L20 15"/></svg>
+              </span>
+              <span>Refresh</span>
+            </button>
+            <button id="mobileSignOutBtn" type="button">
+              <span class="mobile-menu-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M9 21H5.5A2.5 2.5 0 0 1 3 18.5v-13A2.5 2.5 0 0 1 5.5 3H9"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+              </span>
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+    </main>
+
+    <div id="driverInfoModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="driverInfoTitle">
+      <form id="driverInfoForm" class="modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Driver account</p>
+            <h2 id="driverInfoTitle">Driver info</h2>
+          </div>
+          <div class="modal-actions">
+            <button id="driverInfoEditBtn" class="icon-menu-btn modal-close" type="button" aria-label="Edit driver info">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z"/></svg>
+              </span>
+            </button>
+            <button id="driverInfoCloseBtn" class="icon-menu-btn modal-close" type="button" aria-label="Close driver info">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg>
+              </span>
+            </button>
+          </div>
+        </div>
+        <div id="driverInfoReadOnly" class="driver-info-readonly">
+          <div>
+            <span>Device serial number</span>
+            <strong id="profileSerialText">Not connected</strong>
+          </div>
+          <div>
+            <span>Email address</span>
+            <strong id="profileEmailText">Email not loaded</strong>
+          </div>
+          <div>
+            <span>Driver name</span>
+            <strong id="profileNameText">Driver</strong>
+          </div>
+        </div>
+        <div class="stacked-form">
+          <input id="profileSerial" type="hidden" readonly />
+          <div id="driverInfoEditFields" class="edit-fields hidden">
+            <label for="profileEmail">Email address</label>
+            <input id="profileEmail" type="email" autocomplete="email" required />
+            <label for="profileName">Driver name</label>
+            <input id="profileName" type="text" autocomplete="name" required />
+            <button id="driverInfoSaveBtn" class="primary-btn" type="submit">Save Driver Info</button>
+            <button id="driverInfoCancelBtn" class="ghost-btn" type="button">Cancel Editing</button>
+          </div>
+          <p id="driverInfoMessage" class="form-message" role="status"></p>
+        </div>
+      </form>
+    </div>
+
+    <script src="client.js"></script>
+  </body>
+</html>

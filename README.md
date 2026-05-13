@@ -1,322 +1,172 @@
 # Driver Fatigue Monitoring System
 
-I developed this project as a professional web platform for a physical Driver Fatigue Monitoring System. The system is designed around a real AI detection device, not a browser-based model. The physical device contains the camera, runs the fatigue detection model locally, and sends only the final detection results to the backend.
+Driver Fatigue Monitoring System is a production-style graduation project that connects a physical AI detection device to a secure web dashboard. The physical device owns the camera and runs the fatigue model locally. The website does not run AI inference; it only displays verified events that were already detected by the device and stored in Supabase.
 
-The website is a dashboard and administration platform. It does not run the AI model, does not access the camera, and does not perform inference in the browser.
+The system is designed around this architecture:
 
 ```text
 Physical Device -> Supabase Edge Function -> Supabase Database -> Website Dashboard
 ```
 
-## Project Purpose
+## Live Pages
 
-The goal of this system is to monitor driver fatigue events in a secure and organized way. The physical device detects driver states such as `Awake`, `Drowsy`, and `Yawn`. When a fatigue-related event is detected, the device sends the event to a Supabase Edge Function through HTTPS. The backend validates the device serial number and device token, stores the event in the database, and the website dashboard displays the live status, analytics, logs, and reports.
+- Driver portal: `https://driver-fatigue-monitoring-system.github.io/`
+- Admin console: `https://driver-fatigue-monitoring-system.github.io/admin.html`
 
-This project is suitable as a graduation project prototype and as a production-style proof of concept for a connected safety monitoring platform.
+The driver portal is the page I use for clients. The admin console is deployed too, but access is protected by Supabase Auth and the `profiles.role = 'admin'` database rule.
 
-## Live Website
+## What This Project Does
 
-Target GitHub Pages project name:
+- Runs fatigue detection on a physical camera device, not in the browser.
+- Sends confirmed fatigue events to a Supabase Edge Function over HTTPS.
+- Validates the device serial number and private device token before storing events.
+- Stores drivers, devices, detection logs, and sessions in Supabase.
+- Lets a driver open their dashboard using the permanent serial number printed on the device.
+- Lets a new driver claim an unassigned serial once by entering serial, email, and name.
+- Shows live status, latest event, confidence, current session counters, analytics, event history, and CSV export.
+- Provides an admin console to register devices, assign devices, reset tokens, disable/activate devices, and search devices.
+- Sends device activation emails with Brevo from the backend only.
+- Keeps service role keys, Brevo keys, and device token hashing logic out of frontend code.
 
-```text
-driver-fatigue-monitoring-system.github.io
-```
-
-Important GitHub Pages note:
-
-- If the repository is created under my normal GitHub account, the website URL will be similar to:
-
-```text
-https://MY_GITHUB_USERNAME.github.io/driver-fatigue-monitoring-system.github.io/
-```
-
-- To get this exact root URL:
+## Repository Structure
 
 ```text
-https://driver-fatigue-monitoring-system.github.io/
-```
-
-the GitHub user or organization must be named:
-
-```text
-driver-fatigue-monitoring-system
-```
-
-## Main Features
-
-- Responsive driver dashboard for laptop, tablet, and mobile browsers.
-- Driver login using email address and permanent unique device serial number.
-- Live device monitoring with status indicators:
-  - Green for `Awake`
-  - Red for `Drowsy`
-  - Orange for `Yawn`
-- Latest event timestamp and confidence score.
-- Current session counters.
-- Optional latest camera frame preview when `frame_url` is sent.
-- Analytics charts for fatigue events.
-- Event history table.
-- CSV and Excel log export.
-- Admin dashboard for fleet/device management.
-- Device activation workflow with Brevo email integration.
-- Supabase database schema and Row Level Security policies.
-- Supabase Edge Function endpoint for physical device event ingestion.
-- Secure separation between frontend public keys and backend secret keys.
-
-## System Architecture
-
-```mermaid
-flowchart LR
-    A["Physical AI Device"] -->|"HTTPS event request"| B["Supabase Edge Function"]
-    B -->|"Validate serial and token"| C["Supabase Database"]
-    C -->|"Authenticated queries"| D["Website Dashboard"]
-    E["Brevo Email Service"] -->|"Activation email"| F["Driver"]
-    B --> E
-```
-
-The physical AI device is responsible for camera input and model inference. The backend is responsible for validation, storage, and email activation. The website is responsible for displaying the already-detected results.
-
-## Technology Stack
-
-- Frontend: HTML, CSS, JavaScript
-- Charts: Chart.js
-- Excel export: SheetJS
-- Backend: Supabase Edge Functions
-- Database: Supabase PostgreSQL
-- Authentication:
-  - Drivers: email address + permanent device serial number
-  - Admins: Supabase Auth + admin role in `profiles`
-- Email service: Brevo
-- Deployment: GitHub Pages
-- Physical device communication: HTTPS POST requests to Supabase Edge Function
-
-## Project Structure
-
-```text
-driver-fatigue-platform/
-├── .github/
-│   └── workflows/
-│       └── pages.yml
+.
+├── index.html                         # Full local/admin-capable web app
+├── client.html                        # Public driver portal used as GitHub Pages homepage
+├── app.js                             # Admin/full dashboard logic
+├── client.js                          # Driver-only dashboard logic
+├── styles.css                         # Shared responsive UI styles
+├── config.js                          # Public Supabase frontend config
+├── config.example.js                  # Template frontend config
 ├── supabase/
-│   ├── schema.sql
+│   ├── schema.sql                     # Tables, indexes, RLS policies
 │   └── functions/
-│       ├── _shared/
-│       ├── admin-activate-device/
-│       ├── admin-device-action/
-│       ├── device-events/
-│       └── driver-login/
-├── app.js
-├── config.example.js
-├── config.js
-├── index.html
-├── styles.css
-├── .gitignore
-├── .nojekyll
-└── README.md
+│       ├── device-events/             # Physical device event ingestion endpoint
+│       ├── driver-login/              # Driver serial/email/name access workflow
+│       ├── driver-update-profile/     # Driver profile update endpoint
+│       ├── admin-register-device/     # Register printed devices before sale
+│       ├── admin-activate-device/     # Assign driver and send Brevo email
+│       ├── admin-device-action/       # Disable, activate, reset token
+│       └── _shared/                   # Shared crypto, HTTP, Supabase helpers
+├── physical-device/                   # Laptop/Raspberry Pi device code
+│   ├── main.py
+│   ├── Run_DFMS_Device.bat
+│   ├── Setup_Device_Once.bat
+│   ├── device_config.example.json
+│   ├── alarm1.mp3
+│   ├── alarm2.mp3
+│   └── fatigues.pt
+└── README_DEVICE.md                   # Physical device guide
 ```
 
-## Database Design
+Runtime files are intentionally not committed:
 
-The main database tables are:
+- `physical-device/device_config.json`
+- `physical-device/Excel_driver_logs.xlsx`
+- `physical-device/recordinges_drowsy/`
+- local `.env` files
 
-### `drivers`
+## System Flow
 
-Stores driver information.
+1. I register a physical device in the admin console.
+2. The backend generates a permanent serial number and a private device token.
+3. The serial number is printed on the device or box.
+4. The private device token is stored only inside the device configuration file.
+5. The client opens the driver portal and enters the serial number.
+6. If the device is new and unclaimed, the client enters their email and name once.
+7. The device runs the AI model locally using the camera.
+8. When Drowsy is confirmed for 3 consecutive seconds, or Yawn is detected above the confidence threshold, the device sends an event to Supabase.
+9. The Edge Function validates the serial number and token, then stores the event.
+10. The dashboard reads the authenticated driver’s rows and displays status, analytics, logs, and sessions.
 
-- `id`
-- `name`
-- `email`
-- `created_at`
+## Frontend
 
-### `devices`
+The frontend is a static website that can run on GitHub Pages. It uses:
 
-Stores the physical device record and links it to one driver.
+- Plain HTML/CSS/JavaScript
+- Supabase browser client
+- Chart.js for analytics
+- XLSX library for log export
 
-- `id`
-- `serial_number`
-- `device_token_hash`
-- `driver_id`
-- `activated_at`
-- `status`
-- `created_at`
+The UI includes:
 
-The raw device token is not stored in the database. Only the hashed token is saved.
+- Driver access page
+- Driver live status
+- Current session counters
+- Session duration
+- Analytics charts
+- Event logs table
+- Driver info modal
+- Responsive PC/tablet and mobile layouts
+- Admin fleet console
+- Device search by serial, driver email, driver name, or status
 
-### `detection_logs`
+## Supabase Database
 
-Stores fatigue events sent by the physical device.
+The schema is in `supabase/schema.sql`.
 
-- `id`
-- `device_id`
-- `driver_id`
-- `timestamp`
-- `event_type`
-- `confidence`
-- `status`
-- `frame_url`
-- `session_id`
-- `created_at`
+Main tables:
 
-### `driving_sessions`
+- `profiles`: Supabase Auth profile and admin role.
+- `drivers`: Driver name and email.
+- `devices`: Permanent serial numbers, hashed device tokens, device status, and assigned driver.
+- `detection_logs`: Confirmed Drowsy/Yawn events sent by devices.
+- `driving_sessions`: Session summaries and fatigue totals.
 
-Stores optional driving session summaries.
+Security:
 
-- `id`
-- `driver_id`
-- `device_id`
-- `started_at`
-- `ended_at`
-- `total_drowsy_events`
-- `total_yawn_events`
+- Row Level Security is enabled.
+- Drivers can read only their own driver, device, log, and session rows.
+- Admins can manage all rows.
+- Physical devices cannot read database tables directly.
+- Devices only send events through the Edge Function.
 
-### `profiles`
+## Supabase Edge Functions
 
-Stores Supabase Auth user roles for administrators.
-
-- `id`
-- `email`
-- `role`
-
-## Driver Access
-
-Drivers access the dashboard using:
+### Device Event Endpoint
 
 ```text
-Email address
-Permanent unique device serial number
+POST https://wxxdtuzicvjkjqymjsfj.supabase.co/functions/v1/device-events
 ```
 
-The serial number is sent to the driver by email during device activation. The driver can use the same email and serial number to access the dashboard in the future.
-
-## Admin Workflow
-
-The administrator can:
-
-- Register a new physical device.
-- Generate a permanent unique serial number.
-- Assign a device to a driver email.
-- Send an activation email through Brevo.
-- View all devices and their status.
-- Disable a device.
-- Reset a device token.
-- View driver logs and fleet analytics.
-
-When a device is activated:
-
-1. I enter the driver name and email in the admin dashboard.
-2. The backend creates or updates the driver record.
-3. The backend generates or stores a permanent serial number.
-4. The backend generates a device token.
-5. The backend stores only the hashed device token.
-6. Brevo sends the serial number to the driver by email.
-7. The raw device token is shown to the admin once.
-8. The device token is installed on the physical AI device.
-
-The driver receives only the serial number, not the device token.
-
-## Physical Device Security
-
-The physical device stores only:
-
-```text
-device_serial
-device_token
-```
-
-The physical device must never store:
-
-```text
-SUPABASE_SERVICE_ROLE_KEY
-BREVO_API_KEY
-APP_JWT_SECRET
-DEVICE_TOKEN_PEPPER
-```
-
-The physical device communicates only with:
-
-```text
-POST https://PROJECT_REF.supabase.co/functions/v1/device-events
-```
-
-The device does not access the database directly.
-
-## Device Event API
-
-Endpoint:
-
-```text
-POST https://PROJECT_REF.supabase.co/functions/v1/device-events
-```
-
-Example request:
+Example body:
 
 ```json
 {
   "device_serial": "DFMS-8H42K9",
-  "device_token": "secret_device_token",
-  "timestamp": "2026-05-11T14:20:00Z",
+  "device_token": "PRIVATE_DEVICE_TOKEN",
+  "timestamp": "2026-05-13T10:20:00Z",
   "event_type": "Drowsy",
   "confidence": 0.91,
   "status": "Drowsy",
-  "frame_url": "optional-image-url",
-  "session_id": "optional-session-id"
+  "frame_url": null,
+  "session_id": "session-id"
 }
 ```
 
-The Edge Function validates:
+The function:
 
-- Device serial number exists.
-- Device token matches the stored hash.
-- Device status is active.
-- Device is assigned to a driver.
+- Validates the serial number.
+- Hashes the submitted token and compares it with `device_token_hash`.
+- Rejects unknown, inactive, or unassigned devices.
+- Finds the linked driver.
+- Inserts the event into `detection_logs`.
+- Updates or creates the related driving session.
 
-If validation succeeds, the event is inserted into `detection_logs`.
+## Brevo Email Workflow
 
-## Supabase Setup
+Brevo is used only from the backend. The frontend never contains the Brevo API key.
 
-1. Create a Supabase project.
-2. Open the Supabase SQL Editor.
-3. Run:
+When a device is assigned to a driver by the admin workflow:
 
-```text
-supabase/schema.sql
-```
+- The backend sends the email using Brevo.
+- The email includes the driver name, serial number, dashboard link, and activation instructions.
+- The permanent serial number is what the driver uses to access the dashboard.
 
-4. Create an admin user in Supabase Auth.
-5. Copy the admin user's UUID.
-6. Promote the user to admin:
+## Required Supabase Secrets
 
-```sql
-insert into public.profiles (id, email, role)
-values ('PASTE_ADMIN_USER_UUID_HERE', 'admin-email@example.com', 'admin')
-on conflict (id) do update
-set role = 'admin', email = excluded.email;
-```
-
-## Supabase Edge Function Deployment
-
-From the project folder:
-
-```bash
-npx supabase link --project-ref YOUR_PROJECT_REF
-```
-
-Deploy the device and driver-login functions without JWT verification because they perform their own validation:
-
-```bash
-npx supabase functions deploy device-events --no-verify-jwt
-npx supabase functions deploy driver-login --no-verify-jwt
-```
-
-Deploy admin functions normally:
-
-```bash
-npx supabase functions deploy admin-activate-device
-npx supabase functions deploy admin-device-action
-```
-
-## Supabase Secrets
-
-Set backend secrets using the Supabase CLI:
+Set these in Supabase, not in frontend code:
 
 ```bash
 npx supabase secrets set APP_JWT_SECRET="YOUR_SUPABASE_JWT_SECRET"
@@ -324,146 +174,89 @@ npx supabase secrets set DEVICE_TOKEN_PEPPER="LONG_RANDOM_PEPPER"
 npx supabase secrets set BREVO_API_KEY="YOUR_BREVO_API_KEY"
 npx supabase secrets set BREVO_SENDER_EMAIL="verified-sender@example.com"
 npx supabase secrets set BREVO_SENDER_NAME="Driver Fatigue Monitoring System"
-npx supabase secrets set DASHBOARD_LOGIN_URL="https://your-github-pages-url/"
+npx supabase secrets set DASHBOARD_LOGIN_URL="https://driver-fatigue-monitoring-system.github.io/"
 ```
 
-I do not place backend secrets in frontend code.
+The normal Supabase runtime secrets `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are used by the Edge Functions in the Supabase environment.
 
-## Frontend Configuration
+## Deploy Supabase
 
-The frontend uses only public Supabase values in `config.js`.
-
-```js
-window.DFMS_CONFIG = {
-  SUPABASE_URL: "https://YOUR_PROJECT_REF.supabase.co",
-  SUPABASE_ANON_KEY: "YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY",
-  FUNCTIONS_BASE_URL: "https://YOUR_PROJECT_REF.supabase.co/functions/v1",
-  DASHBOARD_LOGIN_URL: window.location.origin + window.location.pathname,
-  DEMO_MODE: false
-};
-```
-
-The anon or publishable key is safe for browser use when Row Level Security is enabled correctly. The service role key must never be used in the website.
-
-## Brevo Email Activation
-
-Brevo is used from the backend only. When the admin activates a device, the backend sends an email to the driver containing:
-
-- Driver name
-- Permanent device serial number
-- Dashboard login link
-- Basic activation instructions
-
-The raw device token is not emailed to the driver. It is shown to the admin once and should be installed on the physical device.
-
-## Row Level Security
-
-The system uses Supabase Row Level Security to protect data:
-
-- Drivers can read only their own data.
-- Admin users can manage all drivers, devices, and logs.
-- Devices cannot directly read or write database tables.
-- Devices can only submit events through the Edge Function.
-- Backend functions use secret keys only in the Supabase server environment.
-
-## GitHub Pages Deployment
-
-This project includes a GitHub Actions workflow:
-
-```text
-.github/workflows/pages.yml
-```
-
-The workflow publishes only the static website files to GitHub Pages:
-
-- `index.html`
-- `styles.css`
-- `app.js`
-- `config.js`
-- `config.example.js`
-- `README.md`
-- `.nojekyll`
-
-To deploy:
-
-1. Create a GitHub repository named:
-
-```text
-driver-fatigue-monitoring-system.github.io
-```
-
-2. Push this project to the `main` branch.
-3. Open the GitHub repository.
-4. Go to **Settings** -> **Pages**.
-5. Set **Source** to **GitHub Actions**.
-6. Wait for the `Deploy static dashboard to GitHub Pages` workflow to finish.
-7. Open the GitHub Pages URL.
-
-After deployment, update the Supabase secret:
+1. Link the project:
 
 ```bash
-npx supabase secrets set DASHBOARD_LOGIN_URL="https://YOUR_FINAL_GITHUB_PAGES_URL/"
+npx supabase link --project-ref wxxdtuzicvjkjqymjsfj
 ```
 
-Then redeploy the activation function if needed:
+2. Apply the database schema in the Supabase SQL editor or through the CLI.
+
+3. Deploy functions:
 
 ```bash
+npx supabase functions deploy device-events
+npx supabase functions deploy driver-login
+npx supabase functions deploy driver-update-profile
+npx supabase functions deploy admin-register-device
 npx supabase functions deploy admin-activate-device
+npx supabase functions deploy admin-device-action
 ```
 
-## Physical Device Guide
+4. Create an admin user in Supabase Auth, then add their profile row:
 
-The physical device should run the detection model locally. When the model detects `Drowsy` or `Yawn`, it should send the event to the Edge Function.
-
-Example device environment:
-
-```bash
-DFMS_DEVICE_SERIAL="DFMS-8H42K9"
-DFMS_DEVICE_TOKEN="DEVICE_TOKEN_FROM_ADMIN"
-DFMS_EVENT_COOLDOWN="5"
+```sql
+insert into public.profiles (id, email, role)
+values ('ADMIN_AUTH_USER_UUID', 'admin@example.com', 'admin')
+on conflict (id) do update
+set role = 'admin', email = excluded.email;
 ```
 
-The device event sender should use HTTPS and should never include database service keys.
+## Deploy Website To GitHub Pages
+
+This repository is prepared for the GitHub organization:
+
+```text
+driver-fatigue-monitoring-system/driver-fatigue-monitoring-system.github.io
+```
+
+That repository name gives this clean URL:
+
+```text
+https://driver-fatigue-monitoring-system.github.io/
+```
+
+The GitHub Pages workflow copies:
+
+- `client.html` as the public `index.html`
+- `index.html` as `admin.html`
+- shared JavaScript/CSS/config files
+- documentation
+
+## Physical Device
+
+The physical-device code is included in `physical-device/`. It is the part that runs on a laptop or small computer connected to the camera.
+
+Important behavior:
+
+- The device runs the model locally.
+- Drowsy is only sent after the driver’s eyes remain closed for 3 consecutive seconds.
+- Yawn is ignored below 65% confidence.
+- Drowsy alarm loops until the eyes reopen.
+- Yawn alarm plays once and does not repeat for 10 seconds.
+- Drowsy events record a 15-second clip with 3 seconds before the confirmed drowsy moment.
+- Local Excel logs are separated by day.
+- The device sends only confirmed Drowsy/Yawn events to Supabase.
+
+Full setup details are in `README_DEVICE.md`.
 
 ## Security Notes
 
-- The website contains only public frontend values.
-- The Supabase service role key is backend-only.
-- The Brevo API key is backend-only.
-- Device tokens are hashed before storage.
-- Each device has a unique permanent serial number.
-- Each serial number is assigned to one driver email.
-- Drivers use only their email and serial number to access their dashboard.
-- The browser does not run the fatigue detection model.
+- The Supabase service role key is never stored on the physical device.
+- The Brevo API key is never placed in frontend files.
+- The physical device stores only its own serial number and private token.
+- Device tokens are hashed in the database.
+- The browser uses only public Supabase frontend values.
+- Admin actions require Supabase Auth and the admin role.
+- `device_config.json` is private and ignored by Git.
 
-## Local Testing
+## My Project Goal
 
-Run a local static server:
-
-```bash
-python -m http.server 8080
-```
-
-Open:
-
-```text
-http://127.0.0.1:8080
-```
-
-Driver access requires a driver and active device record in Supabase.
-
-Admin access requires:
-
-- A Supabase Auth user.
-- A matching row in `profiles`.
-- `role = 'admin'`.
-
-## Final Notes
-
-I built this platform to demonstrate a complete connected safety monitoring system:
-
-```text
-AI Physical Device -> Secure Backend -> Database -> Professional Dashboard
-```
-
-The most important design decision is that the AI detection runs on the physical device. The web platform receives, verifies, stores, and visualizes the detection results in a secure way.
+I built this project to demonstrate a realistic Driver Fatigue Monitoring System where the physical AI device, backend validation, database security, email activation, and dashboard analytics work together as one complete platform. The main idea is that the AI model stays on the device, while the website acts as the secure monitoring and reporting layer.

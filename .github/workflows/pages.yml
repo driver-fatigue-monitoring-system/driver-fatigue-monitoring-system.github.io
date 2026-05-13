@@ -32,7 +32,10 @@ jobs:
       - name: Prepare static website
         run: |
           mkdir -p _site
-          cp index.html styles.css app.js config.js config.example.js README.md .nojekyll _site/
+          cp client.html _site/index.html
+          cp client.html _site/client.html
+          cp index.html _site/admin.html
+          cp app.js client.js styles.css config.js config.example.js README.md README_DEVICE.md .nojekyll _site/
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3

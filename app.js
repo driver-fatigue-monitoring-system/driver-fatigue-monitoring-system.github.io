@@ -62,6 +62,32 @@ const dom = {
   desktopLayoutBtn: document.getElementById("desktopLayoutBtn"),
   mobileLayoutBtn: document.getElementById("mobileLayoutBtn"),
   signOutBtn: document.getElementById("signOutBtn"),
+  actionMenuBtn: document.getElementById("actionMenuBtn"),
+  actionMenu: document.getElementById("actionMenu"),
+  actionAccountEmail: document.getElementById("actionAccountEmail"),
+  actionRefreshBtn: document.getElementById("actionRefreshBtn"),
+  actionSignOutBtn: document.getElementById("actionSignOutBtn"),
+  mobileMenuBtn: document.getElementById("mobileMenuBtn"),
+  mobileActionMenu: document.getElementById("mobileActionMenu"),
+  mobileAccountEmail: document.getElementById("mobileAccountEmail"),
+  mobileRefreshBtn: document.getElementById("mobileRefreshBtn"),
+  mobileSignOutBtn: document.getElementById("mobileSignOutBtn"),
+  driverInfoBtn: document.getElementById("driverInfoBtn"),
+  mobileDriverInfoBtn: document.getElementById("mobileDriverInfoBtn"),
+  driverInfoModal: document.getElementById("driverInfoModal"),
+  driverInfoForm: document.getElementById("driverInfoForm"),
+  driverInfoEditBtn: document.getElementById("driverInfoEditBtn"),
+  driverInfoCloseBtn: document.getElementById("driverInfoCloseBtn"),
+  driverInfoCancelBtn: document.getElementById("driverInfoCancelBtn"),
+  driverInfoReadOnly: document.getElementById("driverInfoReadOnly"),
+  driverInfoEditFields: document.getElementById("driverInfoEditFields"),
+  profileSerial: document.getElementById("profileSerial"),
+  profileSerialText: document.getElementById("profileSerialText"),
+  profileEmail: document.getElementById("profileEmail"),
+  profileEmailText: document.getElementById("profileEmailText"),
+  profileName: document.getElementById("profileName"),
+  profileNameText: document.getElementById("profileNameText"),
+  driverInfoMessage: document.getElementById("driverInfoMessage"),
   adminNavBtn: document.getElementById("adminNavBtn"),
   navButtons: [...document.querySelectorAll(".nav-btn")],
   views: [...document.querySelectorAll(".view")],
@@ -75,6 +101,7 @@ const dom = {
   sessionDrowsy: document.getElementById("sessionDrowsy"),
   sessionYawn: document.getElementById("sessionYawn"),
   sessionTotal: document.getElementById("sessionTotal"),
+  sessionDuration: document.getElementById("sessionDuration"),
   todayPieChart: document.getElementById("todayPieChart"),
   dailyChart: document.getElementById("dailyChart"),
   weeklyChart: document.getElementById("weeklyChart"),
@@ -86,10 +113,13 @@ const dom = {
   driverNameInput: document.getElementById("driverNameInput"),
   driverEmailInput: document.getElementById("driverEmailInput"),
   serialInput: document.getElementById("serialInput"),
+  registerInventoryBtn: document.getElementById("registerInventoryBtn"),
   adminActionMessage: document.getElementById("adminActionMessage"),
   adminDriverCount: document.getElementById("adminDriverCount"),
   adminDeviceCount: document.getElementById("adminDeviceCount"),
   adminTodayCount: document.getElementById("adminTodayCount"),
+  adminDeviceSearch: document.getElementById("adminDeviceSearch"),
+  adminDeviceSearchCount: document.getElementById("adminDeviceSearchCount"),
   devicesTable: document.getElementById("devicesTable")
 };
 
@@ -142,6 +172,39 @@ function applyLayoutMode(mode) {
   dom.mobileLayoutBtn?.classList.toggle("active", selectedMode === "mobile");
 }
 
+function closeMobileMenu() {
+  dom.mobileActionMenu?.classList.add("hidden");
+  dom.mobileMenuBtn?.classList.remove("open");
+  dom.mobileMenuBtn?.setAttribute("aria-expanded", "false");
+}
+
+function closeActionMenu() {
+  dom.actionMenu?.classList.add("hidden");
+  dom.actionMenuBtn?.classList.remove("open");
+  dom.actionMenuBtn?.setAttribute("aria-expanded", "false");
+}
+
+function closeMenus() {
+  closeMobileMenu();
+  closeActionMenu();
+}
+
+function toggleMobileMenu() {
+  const shouldOpen = dom.mobileActionMenu?.classList.contains("hidden");
+  closeActionMenu();
+  dom.mobileActionMenu?.classList.toggle("hidden", !shouldOpen);
+  dom.mobileMenuBtn?.classList.toggle("open", Boolean(shouldOpen));
+  dom.mobileMenuBtn?.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+}
+
+function toggleActionMenu() {
+  const shouldOpen = dom.actionMenu?.classList.contains("hidden");
+  closeMobileMenu();
+  dom.actionMenu?.classList.toggle("hidden", !shouldOpen);
+  dom.actionMenuBtn?.classList.toggle("open", Boolean(shouldOpen));
+  dom.actionMenuBtn?.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+}
+
 function statusClass(status) {
   const text = String(status || "Awake").toLowerCase();
   if (text.includes("drowsy")) return "drowsy";
@@ -154,6 +217,66 @@ function formatTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Invalid time";
   return date.toLocaleString();
+}
+
+function validDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDuration(milliseconds) {
+  const totalSeconds = Math.max(0, Math.floor(Number(milliseconds || 0) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+function logDateRange(logs = []) {
+  const dates = logs.map((log) => validDate(log.timestamp)).filter(Boolean);
+  if (!dates.length) return { start: null, end: null };
+  const times = dates.map((date) => date.getTime());
+  return {
+    start: new Date(Math.min(...times)),
+    end: new Date(Math.max(...times))
+  };
+}
+
+function sessionLogs(session) {
+  if (!session) return [];
+  const sessionId = String(session.id || "");
+  const exactLogs = sessionId
+    ? state.logs.filter((log) => String(log.session_id || "") === sessionId)
+    : [];
+  if (exactLogs.length) return exactLogs;
+
+  const start = validDate(session.started_at);
+  if (!start) return [];
+  const explicitEnd = validDate(session.ended_at);
+  const nextStart = state.sessions
+    .map((record) => validDate(record.started_at))
+    .filter((date) => date && date > start)
+    .sort((a, b) => a - b)[0];
+  const end = explicitEnd || nextStart || null;
+  return state.logs.filter((log) => {
+    const timestamp = validDate(log.timestamp);
+    if (!timestamp) return false;
+    if (timestamp < start) return false;
+    if (explicitEnd) return timestamp <= explicitEnd;
+    return end ? timestamp < end : true;
+  });
+}
+
+function sessionDurationText(session, logs = []) {
+  const sessionLogRange = logDateRange(logs.length ? logs : sessionLogs(session));
+  const start = validDate(session?.started_at) || sessionLogRange.start;
+  const end = validDate(session?.ended_at) || sessionLogRange.end;
+  if (!start) return "0s";
+  if (!end) return "0s";
+  return formatDuration(end - start);
 }
 
 function todayKey(date = new Date()) {
@@ -465,6 +588,7 @@ function showApp(role) {
   dom.adminNavBtn.classList.toggle("hidden", role !== "admin");
   dom.accountMode.textContent = role === "admin" ? "Administrator console" : "Driver dashboard";
   dom.pageTitle.textContent = role === "admin" ? "Fleet Administration" : "Live Monitoring";
+  renderMenuAccount();
   setConnectionText();
   renderAll();
   startPolling();
@@ -513,7 +637,17 @@ function todayLogs(logs = state.logs) {
 function currentSessionLogs() {
   const latest = latestLog();
   if (!latest?.session_id) return todayLogs();
-  return state.logs.filter((log) => log.session_id === latest.session_id);
+  const session = state.sessions.find((record) => record.id === latest.session_id) || null;
+  const logs = sessionLogs(session);
+  return logs.length ? logs : state.logs.filter((log) => log.session_id === latest.session_id);
+}
+
+function currentSessionRecord() {
+  const latest = latestLog();
+  if (latest?.session_id) {
+    return state.sessions.find((session) => session.id === latest.session_id) || null;
+  }
+  return state.sessions[0] || null;
 }
 
 function eventCounts(logs) {
@@ -545,6 +679,7 @@ function renderDriverStatus() {
   dom.sessionDrowsy.textContent = sessionCounts.Drowsy;
   dom.sessionYawn.textContent = sessionCounts.Yawn;
   dom.sessionTotal.textContent = sessionCounts.total;
+  dom.sessionDuration.textContent = sessionDurationText(currentSessionRecord(), currentSessionLogs());
 
   if (latest?.frame_url) {
     dom.framePreview.innerHTML = `<img alt="Latest device inference frame" src="${escapeAttribute(latest.frame_url)}" />`;
@@ -586,6 +721,7 @@ function renderSessionSummary() {
     <div class="summary-item">
       <strong>${escapeHtml(formatTime(session.started_at))}</strong>
       <span>${session.ended_at ? escapeHtml(formatTime(session.ended_at)) : "Active"}</span>
+      <span>Duration: ${escapeHtml(sessionDurationText(session, sessionLogs(session)))}</span>
       <span>Drowsy: ${Number(session.total_drowsy_events || 0)}</span>
       <span>Yawn: ${Number(session.total_yawn_events || 0)}</span>
     </div>
@@ -593,12 +729,37 @@ function renderSessionSummary() {
   dom.sessionSummary.innerHTML = rows.join("") || `<div class="summary-item">No driving sessions yet.</div>`;
 }
 
+function adminDeviceSearchText(device) {
+  const driver = device.drivers || findDriver(device.driver_id) || {};
+  const activatedText = device.activated_at ? formatTime(device.activated_at) : "Not claimed yet";
+  return [
+    device.id,
+    device.serial_number,
+    device.status,
+    activatedText,
+    driver.name,
+    driver.email
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
 function renderAdmin() {
   const todayCount = fatigueLogs(todayLogs()).length;
   dom.adminDriverCount.textContent = state.drivers.length;
   dom.adminDeviceCount.textContent = state.devices.length;
   dom.adminTodayCount.textContent = todayCount;
-  const rows = state.devices.map((device) => {
+  const query = String(dom.adminDeviceSearch?.value || "").trim().toLowerCase();
+  const devices = query
+    ? state.devices.filter((device) => adminDeviceSearchText(device).includes(query))
+    : state.devices;
+  if (dom.adminDeviceSearchCount) {
+    dom.adminDeviceSearchCount.textContent = query
+      ? `Showing ${devices.length} of ${state.devices.length}`
+      : `${state.devices.length} devices`;
+  }
+  const rows = devices.map((device) => {
     const driverName = device.drivers?.name || findDriver(device.driver_id)?.name || "Unassigned";
     const driverEmail = device.drivers?.email || findDriver(device.driver_id)?.email || "";
     return `
@@ -607,7 +768,7 @@ function renderAdmin() {
         <td>${escapeHtml(driverName)}</td>
         <td>${escapeHtml(driverEmail)}</td>
         <td><span class="event-badge ${device.status === "disabled" ? "drowsy" : "awake"}">${escapeHtml(device.status)}</span></td>
-        <td>${escapeHtml(formatTime(device.activated_at))}</td>
+        <td>${escapeHtml(device.activated_at ? formatTime(device.activated_at) : "Not claimed yet")}</td>
         <td>
           <div class="row-actions">
             <button type="button" data-device-action="disable" data-device-id="${escapeAttribute(device.id)}">Disable</button>
@@ -618,7 +779,7 @@ function renderAdmin() {
       </tr>
     `;
   });
-  dom.devicesTable.innerHTML = rows.join("") || `<tr><td colspan="6">No devices registered yet.</td></tr>`;
+  dom.devicesTable.innerHTML = rows.join("") || `<tr><td colspan="6">${query ? "No matching devices found." : "No devices registered yet."}</td></tr>`;
 }
 
 function findDriver(driverId) {
@@ -743,6 +904,7 @@ function lastNDays(count) {
 }
 
 function renderAll() {
+  renderMenuAccount();
   renderDriverStatus();
   renderLogsTable();
   renderSessionSummary();
@@ -790,6 +952,47 @@ async function activateDevice(event) {
       await refreshAdminData();
     }
     dom.activateDeviceForm.reset();
+    renderAll();
+  } catch (error) {
+    setMessage(dom.adminActionMessage, error.message, "error");
+  }
+}
+
+async function registerInventoryDevice() {
+  const serial = normalizeSerial(dom.serialInput.value);
+  setMessage(dom.adminActionMessage, "Registering printed device...");
+  try {
+    if (demoMode()) {
+      const id = crypto.randomUUID ? crypto.randomUUID() : `device-${Date.now()}`;
+      const serialNumber = serial || `DFMS-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+      const deviceToken = `demo-token-${serialNumber}`;
+      state.devices.unshift({
+        id,
+        serial_number: serialNumber,
+        driver_id: null,
+        status: "registered",
+        activated_at: null,
+        drivers: null
+      });
+      setMessage(
+        dom.adminActionMessage,
+        `Inventory device registered. Print serial: ${serialNumber}. Store token inside device once: ${deviceToken}`,
+        "success"
+      );
+    } else {
+      const payload = await callFunction(
+        "admin-register-device",
+        { serial_number: serial || null },
+        state.adminToken
+      );
+      setMessage(
+        dom.adminActionMessage,
+        `Inventory device registered. Print serial: ${payload.serial_number}. Store token inside device once: ${payload.device_token}`,
+        "success"
+      );
+      await refreshAdminData();
+    }
+    dom.serialInput.value = "";
     renderAll();
   } catch (error) {
     setMessage(dom.adminActionMessage, error.message, "error");
@@ -915,6 +1118,107 @@ function escapeAttribute(value) {
   return escapeHtml(value).replace(/`/g, "&#096;");
 }
 
+function connectedEmail() {
+  if (state.role === "admin") return normalizeEmail(dom.adminEmail?.value) || "Admin console";
+  return (
+    state.driver?.email ||
+    state.device?.drivers?.email ||
+    state.logs.find((log) => log.drivers?.email)?.drivers?.email ||
+    normalizeEmail(dom.driverEmail?.value) ||
+    ""
+  );
+}
+
+function connectedName() {
+  return state.driver?.name || "Driver";
+}
+
+function connectedSerial() {
+  return state.device?.serial_number || state.logs.find((log) => log.devices?.serial_number)?.devices?.serial_number || "";
+}
+
+function renderMenuAccount() {
+  const email = connectedEmail() || "Email not loaded";
+  if (dom.actionAccountEmail) dom.actionAccountEmail.textContent = email;
+  if (dom.mobileAccountEmail) dom.mobileAccountEmail.textContent = email;
+}
+
+function renderDriverInfoValues() {
+  const isDriver = state.role === "driver";
+  const serial = isDriver ? connectedSerial() || "Not connected" : "Driver Access only";
+  const email = isDriver ? connectedEmail() || "Email not loaded" : "Sign in from Driver Access";
+  const name = isDriver ? connectedName() || "Driver" : "Driver account";
+  if (dom.profileSerial) dom.profileSerial.value = serial;
+  if (dom.profileEmail) dom.profileEmail.value = isDriver ? connectedEmail() : "";
+  if (dom.profileName) dom.profileName.value = isDriver ? connectedName() : "";
+  if (dom.profileSerialText) dom.profileSerialText.textContent = serial;
+  if (dom.profileEmailText) dom.profileEmailText.textContent = email;
+  if (dom.profileNameText) dom.profileNameText.textContent = name;
+}
+
+function setDriverInfoEditMode(editing) {
+  const canEdit = state.role === "driver";
+  const active = editing && canEdit;
+  dom.driverInfoReadOnly?.classList.toggle("hidden", active);
+  dom.driverInfoEditFields?.classList.toggle("hidden", !active);
+  dom.driverInfoEditBtn?.classList.toggle("hidden", active || !canEdit);
+  if (active) dom.profileName?.focus();
+}
+
+function openDriverInfo() {
+  closeMenus();
+  renderDriverInfoValues();
+  setDriverInfoEditMode(false);
+  setMessage(dom.driverInfoMessage, state.role === "admin" ? "Driver info editing is available from Driver Access." : "");
+  dom.driverInfoModal.classList.remove("hidden");
+  dom.driverInfoEditBtn?.focus();
+}
+
+function closeDriverInfo() {
+  setDriverInfoEditMode(false);
+  dom.driverInfoModal.classList.add("hidden");
+}
+
+async function saveDriverInfo(event) {
+  event.preventDefault();
+  if (state.role !== "driver") {
+    setMessage(dom.driverInfoMessage, "Sign in with Driver Access to edit driver info.", "error");
+    return;
+  }
+  const name = String(dom.profileName.value || "").trim().replace(/\s+/g, " ");
+  const email = normalizeEmail(dom.profileEmail.value);
+  if (!name) {
+    setMessage(dom.driverInfoMessage, "Enter the driver name.", "error");
+    return;
+  }
+  if (!email) {
+    setMessage(dom.driverInfoMessage, "Enter the driver email.", "error");
+    return;
+  }
+
+  setMessage(dom.driverInfoMessage, "Saving driver info...");
+  try {
+    if (demoMode()) {
+      state.driver = { ...(state.driver || {}), name, email };
+    } else {
+      const payload = await callFunction("driver-update-profile", { name, email }, state.driverToken);
+      state.driverToken = payload.access_token || state.driverToken;
+      state.driver = payload.driver || state.driver;
+      state.device = payload.device || state.device;
+      localStorage.setItem(storageKeys.driverToken, state.driverToken);
+      localStorage.setItem(storageKeys.driverProfile, JSON.stringify({ driver: state.driver, device: state.device }));
+    }
+    dom.driverEmail.value = email;
+    dom.accountMode.textContent = state.driver?.name ? `Driver dashboard: ${state.driver.name}` : "Driver dashboard";
+    renderAll();
+    renderDriverInfoValues();
+    setDriverInfoEditMode(false);
+    setMessage(dom.driverInfoMessage, "Driver info updated.", "success");
+  } catch (error) {
+    setMessage(dom.driverInfoMessage, error.message, "error");
+  }
+}
+
 function startPolling() {
   stopPolling();
   if (!state.role) return;
@@ -929,6 +1233,7 @@ function stopPolling() {
 }
 
 async function signOut() {
+  closeMenus();
   stopPolling();
   state.role = "";
   state.driverToken = "";
@@ -957,12 +1262,54 @@ function bindEvents() {
   dom.adminLoginForm.addEventListener("submit", adminLogin);
   dom.signOutBtn.addEventListener("click", signOut);
   dom.refreshBtn.addEventListener("click", refreshData);
+  dom.actionMenuBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleActionMenu();
+  });
+  dom.actionRefreshBtn?.addEventListener("click", async () => {
+    closeMenus();
+    await refreshData();
+  });
+  dom.actionSignOutBtn?.addEventListener("click", signOut);
+  dom.mobileMenuBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleMobileMenu();
+  });
+  dom.mobileRefreshBtn?.addEventListener("click", async () => {
+    closeMobileMenu();
+    await refreshData();
+  });
+  dom.mobileSignOutBtn?.addEventListener("click", signOut);
+  dom.driverInfoBtn?.addEventListener("click", openDriverInfo);
+  dom.mobileDriverInfoBtn?.addEventListener("click", openDriverInfo);
+  dom.driverInfoForm?.addEventListener("submit", saveDriverInfo);
+  dom.driverInfoEditBtn?.addEventListener("click", () => {
+    setMessage(dom.driverInfoMessage, "");
+    setDriverInfoEditMode(true);
+  });
+  dom.driverInfoCloseBtn?.addEventListener("click", closeDriverInfo);
+  dom.driverInfoCancelBtn?.addEventListener("click", () => {
+    renderDriverInfoValues();
+    setMessage(dom.driverInfoMessage, "");
+    setDriverInfoEditMode(false);
+  });
+  dom.driverInfoModal?.addEventListener("click", (event) => {
+    if (event.target === dom.driverInfoModal) closeDriverInfo();
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".mobile-menu-wrap") && !event.target.closest(".action-menu-wrap")) closeMenus();
+  });
   dom.desktopLayoutBtn?.addEventListener("click", () => applyLayoutMode("desktop"));
   dom.mobileLayoutBtn?.addEventListener("click", () => applyLayoutMode("mobile"));
-  dom.navButtons.forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
+  dom.navButtons.forEach((button) => button.addEventListener("click", () => {
+    closeMenus();
+    switchView(button.dataset.view);
+  }));
   dom.downloadCsvBtn.addEventListener("click", downloadCsv);
   dom.downloadExcelBtn.addEventListener("click", downloadExcel);
   dom.activateDeviceForm.addEventListener("submit", activateDevice);
+  dom.registerInventoryBtn?.addEventListener("click", registerInventoryDevice);
+  dom.adminDeviceSearch?.addEventListener("input", renderAdmin);
   dom.devicesTable.addEventListener("click", handleDeviceAction);
 }
 

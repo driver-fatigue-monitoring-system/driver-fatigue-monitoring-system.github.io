@@ -1,0 +1,5 @@
+{
+  "device_serial": "DFMS-YOUR-SERIAL",
+  "device_token": "DEVICE_TOKEN_SHOWN_ONCE_IN_ADMIN_CONSOLE",
+  "supabase_event_url": "https://wxxdtuzicvjkjqymjsfj.supabase.co/functions/v1/device-events"
+}

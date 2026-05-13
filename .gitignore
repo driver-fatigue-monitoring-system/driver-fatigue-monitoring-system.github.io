@@ -19,3 +19,11 @@ Thumbs.db
 # Python helper caches
 __pycache__/
 *.pyc
+
+# Physical device private/runtime files
+physical-device/device_config.json
+physical-device/Excel_driver_logs.xlsx
+physical-device/recordinges_drowsy/
+physical-device/*.avi
+physical-device/*.mp4
+physical-device/*.mkv

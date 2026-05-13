@@ -1,0 +1,8 @@
+device_config.json
+Excel_driver_logs.xlsx
+recordinges_drowsy/
+*.avi
+*.mp4
+*.mkv
+__pycache__/
+*.pyc
